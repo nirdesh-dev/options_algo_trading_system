@@ -1,2 +1,2 @@
 [workspace]
-members = ["services/market_data_service"]
+members = [ "services/backtesting","services/market_data_service"]
