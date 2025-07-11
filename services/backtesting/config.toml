@@ -1,0 +1,12 @@
+[domain_rules]
+entry_time_min = 15
+entry_time_max = 360
+wing_width_min = 1.0
+wing_width_max = 100.0
+stop_loss_min = 0.5
+stop_loss_max = 5.0
+
+[strategies.iron_condor]
+entry_times = [15, 60, 120, 180]
+wing_widths = [5.0, 10.0, 15.0]
+stop_losses = [1.0, 2.0, 3.0]
