@@ -1,8 +1,9 @@
-#[derive(Debug, Clone)]
-pub struct StrategyResult {
-    pub param_set: Vec<f32>,
-    pub pnl: f64,
-    pub sharpe: f64,
-    pub max_drawdown: f64,
-    pub win_rate: f64,
+use crate::domain::strategy::StrategyParams;
+
+#[derive(Debug, Clone, Copy)]
+pub struct BacktestResult {
+    pub param: StrategyParams,
+    pub total_pnl: f32,
+    pub sharpe: f32,
+    pub drawdown: f32,
 }

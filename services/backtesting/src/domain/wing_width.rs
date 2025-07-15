@@ -1,7 +1,8 @@
 use crate::config::DomainRules;
 use anyhow::{Result, bail};
+use serde::Deserialize;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct WingWidthPoints(f32);
 
 impl WingWidthPoints {

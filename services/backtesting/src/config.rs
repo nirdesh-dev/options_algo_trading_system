@@ -1,5 +1,7 @@
+use crate::domain::{EntryTimeMinutes, StopLossMultiplier, WingWidthPoints};
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct DomainRules {
@@ -11,22 +13,9 @@ pub struct DomainRules {
     pub stop_loss_max: f32,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct IronCondorConfig {
-    pub entry_times: Vec<u16>,
-    pub wing_widths: Vec<f32>,
-    pub stop_losses: Vec<f32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct StrategyConfigs {
-    pub iron_condor: IronCondorConfig,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
     pub domain_rules: DomainRules,
-    pub strategies: StrategyConfigs,
 }
 
 impl AppConfig {
