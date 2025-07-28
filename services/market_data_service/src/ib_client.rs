@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use ibapi::prelude::*;
+use time::macros::datetime;
 
 #[derive(Debug, Clone)]
-struct IBConfig {
+pub struct IBConfig {
     pub host: String,
     pub port: u16,
     pub client_id: i32,
@@ -34,6 +35,38 @@ impl IBClient {
                 format!("Failed to connect to IB Gateway/TWS at {}", connection_url)
             })?;
         Ok(client)
+    }
+
+    pub fn get_spx_minute_data(&self, client: &mut Client) -> Result<()> {
+        let spx_contract = Contract {
+            symbol: "SPX".to_string(),
+            security_type: SecurityType::Index,
+            exchange: "CBOE".to_string(),
+            ..Default::default()
+        };
+
+        let now = datetime!(2025-07-15 20:00 UTC); // replace with `time::OffsetDateTime::now_utc()` if using time crate fully
+
+        let historical = client
+            .historical_data(
+                &spx_contract,
+                Some(now),
+                1.days(),
+                HistoricalBarSize::Min,
+                HistoricalWhatToShow::Trades,
+                true,
+            )
+            .context("Failed to get historical data")?;
+
+        println!("SPX 1-min bars ({} total):", historical.bars.len());
+        for bar in &historical.bars {
+            println!(
+                "{} | Open: {:.2}, High: {:.2}, Low: {:.2}, Close: {:.2}, Volume: {}",
+                bar.date, bar.open, bar.high, bar.low, bar.close, bar.volume
+            );
+        }
+
+        Ok(())
     }
 }
 
