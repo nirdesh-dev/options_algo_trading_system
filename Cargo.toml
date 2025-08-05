@@ -1,2 +1,8 @@
 [workspace]
-members = [ "services/backtesting","services/market_data_service"]
+members = ["domain", "services"]
+
+[workspace.package]
+version = "0.9.0"
+authors = ["Nirdesh Bhattarai <nbhattarai.work@gmail.com>"]
+edition = "2024"
+documentation = ""

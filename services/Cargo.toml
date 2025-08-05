@@ -1,0 +1,15 @@
+[package]
+name = "services"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+
+[dependencies]
+anyhow = "1.0.98"
+ibapi = "1.2.2"
+time = "0.3.41"
+crossbeam-channel = "0.5.15"
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
+domain = { path = "../domain" }
+chrono = { version = "0.4.41", features = ["serde"] }
