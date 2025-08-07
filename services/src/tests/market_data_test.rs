@@ -2,14 +2,13 @@ use super::*;
 
 #[test]
 fn test_can_create_ibkr_service() {
-    let service = new("localhost".to_string(), 4002, 1);
+    let service = new("127.0.0.1".to_string(), 4002, 100); // Use 127.0.0.1 and client ID 100
 }
 
 #[test]
 fn test_init_returns_join_handle() {
-    let service = new("localhost".to_string(), 4002, 1);
+    let service = new("127.0.0.1".to_string(), 4002, 101);
     let shutdown = Arc::new(AtomicBool::new(false));
-    let symbols = vec!["AAPL".to_string()];
 
     let handle = service.init(shutdown.clone());
     assert!(handle.is_ok());
@@ -20,34 +19,31 @@ fn test_init_returns_join_handle() {
         let _ = h.join();
     }
 }
+
 #[test]
 fn test_service_starts_disconnected() {
-    let service = new("localhost".to_string(), 4002, 1);
+    let service = new("127.0.0.1".to_string(), 4002, 102);
     assert!(!service.is_connected());
 }
 
 #[test]
 fn test_init_attempts_connection() {
-    let service = new("localhost".to_string(), 4002, 1);
+    let service = new("127.0.0.1".to_string(), 4002, 103);
     let shutdown = Arc::new(AtomicBool::new(false));
 
-    // Should start disconnected
     assert!(!service.is_connected());
     let _handle = service.init(shutdown.clone()).unwrap();
 
-    // Give it time to attempt connection
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Give more time for IBKR connection + historical data fetch
+    std::thread::sleep(std::time::Duration::from_millis(3000)); // 3 seconds
 
-    // Should have attempted connection (will fail, but connection_status should be updated)
-    // This test will FAIL because our dummy init doesn't try to connect
     assert!(service.is_connected());
-
     shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[test]
 fn test_can_subscribe_to_market_data() {
-    let service = new("localhost".to_string(), 4002, 1);
+    let service = new("127.0.0.1".to_string(), 4002, 104);
     let symbols = vec!["AAPL".to_string()];
 
     let receiver = service.subscribe_market_data(symbols).unwrap();
@@ -56,23 +52,21 @@ fn test_can_subscribe_to_market_data() {
 
 #[test]
 fn test_can_unsubscribe_to_market_data() {
-    let service = new("localhost".to_string(), 4002, 1);
+    let service = new("127.0.0.1".to_string(), 4002, 105);
     let symbols = vec!["AAPL".to_string()];
 
     let receiver = service.subscribe_market_data(symbols).unwrap();
 
-    // This should succeed
     let result = service.unsubscribe_market_data(&receiver);
     assert!(result.is_ok());
 
-    // This should fail - can't unsubscribe twice
     let result2 = service.unsubscribe_market_data(&receiver);
     assert!(result2.is_err())
 }
 
 #[test]
 fn test_subscribers_receive_quotes() {
-    let service = new("localhost".to_string(), 4002, 1);
+    let service = new("127.0.0.1".to_string(), 4002, 106);
 
     // Subscribe to market data
     let receiver = service
@@ -83,19 +77,22 @@ fn test_subscribers_receive_quotes() {
     let shutdown = Arc::new(AtomicBool::new(false));
     let _handle = service.init(shutdown.clone()).unwrap();
 
-    // Wait a bit for connection
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    // Wait longer for: connection + historical data fetch + streaming to start
+    println!("⏳ Waiting for IBKR connection and historical data...");
+    std::thread::sleep(std::time::Duration::from_millis(8000)); // 8 seconds
 
-    // TODO: In real implementation, service would receive quotes from IBKR and broadcast them
-    // For now, this test will timeout because no quotes are sent
-
-    // Try to receive a quote (this will fail because we don't broadcast any quotes yet)
-    match receiver.recv_timeout(std::time::Duration::from_millis(200)) {
-        Ok(_quote) => {
-            // Test passes if we receive a quote
+    // Try to receive a quote with reasonable timeout
+    match receiver.recv_timeout(std::time::Duration::from_millis(5000)) {
+        // 5 second timeout
+        Ok(quote) => {
+            println!("✅ Received historical quote: {:?}", quote);
+            // Test passes!
         }
-        Err(_) => {
-            panic!("Expected to receive a quote but got timeout");
+        Err(e) => {
+            panic!(
+                "Expected to receive a quote but got timeout: {:?} - Check IB Gateway is running and connected",
+                e
+            );
         }
     }
 
