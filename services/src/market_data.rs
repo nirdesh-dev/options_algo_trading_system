@@ -1,9 +1,13 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use crossbeam::epoch::Atomic;
 use crossbeam_channel::{Receiver, Sender};
 use domain::domain::Quote;
-use std::any;
+use ibapi::prelude::HistoricalBarSize;
+use ibapi::prelude::HistoricalWhatToShow;
+use ibapi::prelude::RealtimeBarSize;
+use ibapi::prelude::RealtimeWhatToShow;
+use ibapi::prelude::ToDuration;
+use ibapi::{Client, contracts::Contract};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::{AtomicBool, AtomicI32};
 use std::sync::{Arc, Mutex};
@@ -21,13 +25,7 @@ pub struct MarketData {
 
 pub trait MarketDataService {
     /// Initialize connection to TWS/IB Gateway
-    fn init(
-        &self,
-        shutdown: Arc<AtomicBool>,
-        host: String,
-        port: u16,
-        client_id: i32,
-    ) -> Result<JoinHandle<()>>;
+    fn init(&self, shutdown: Arc<AtomicBool>) -> Result<JoinHandle<()>>;
 
     /// Subscribe to real-time market data for symbols
     fn subscribe_market_data(&self, symbols: Vec<String>) -> Result<Receiver<Quote>>;
@@ -52,44 +50,107 @@ pub fn new(host: String, port: u16, client_id: i32) -> Arc<impl MarketDataServic
 }
 
 impl MarketDataService for MarketData {
-    fn init(
-        &self,
-        shutdown: Arc<AtomicBool>,
-        _host: String,
-        _port: u16,
-        _client_id: i32,
-    ) -> Result<JoinHandle<()>> {
+    fn init(&self, shutdown: Arc<AtomicBool>) -> Result<JoinHandle<()>> {
         let connection_status = self.connection_status.clone();
         let subscribers = self.subscribers.clone();
+        let address = format!("{}:{}", self.host, self.port); // Use struct fields
+        let client_id = self.client_id; // Use struct field
+
         let handle = std::thread::spawn(move || {
-            // Simulate connection attempt
-            // For now, just set connection status to true
-            // Later we'll replace this with real IBKR connection logic
-            connection_status.store(true, std::sync::atomic::Ordering::Relaxed);
+            // IBKR Connection
+            loop {
+                match Client::connect(&address, client_id) {
+                    Ok(client) => {
+                        connection_status.store(true, std::sync::atomic::Ordering::Relaxed);
+                        // Subscribe to market data for symbols
+                        let contract = Contract::stock("AAPL");
 
-            while !shutdown.load(std::sync::atomic::Ordering::Relaxed) {
-                // Main loop - sending mock quotes
-                let mock_quote = Quote {
-                    symbol: "AAPL".to_string(),
-                    bid: 150.0,
-                    ask: 150.5,
-                    bid_size: 100,
-                    ask_size: 100,
-                    biddate: chrono::Local::now(),
-                    askdate: chrono::Local::now(),
-                };
+                        // Comment Real-time pricing to use historical prices for now (since it works outside market hours)
 
-                // Broadcast to all subscribers
-                if let Ok(subs) = subscribers.lock() {
-                    for (_, sender) in subs.iter() {
-                        let _ = sender.send(mock_quote.clone());
+                        // if let Ok(subscription) = client.realtime_bars(
+                        //     &contract,
+                        //     RealtimeBarSize::Sec5,
+                        //     RealtimeWhatToShow::Trades,
+                        //     false,
+                        // ) {
+                        //     for bar in subscription {
+                        //         let quote = Quote {
+                        //             symbol: "AAPL".to_string(),
+                        //             bid: bar.close, // Use close price as both bid/ask for simplicity
+                        //             ask: bar.close,
+                        //             bid_size: bar.volume as u32,
+                        //             ask_size: bar.volume as u32,
+                        //             biddate: chrono::Local::now(),
+                        //             askdate: chrono::Local::now(),
+                        //         };
+                        //         if let Ok(subs) = subscribers.lock() {
+                        //             for (_, sender) in subs.iter() {
+                        //                 let _ = sender.send(quote.clone());
+                        //             }
+                        //         }
+
+                        //         if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+                        //             break;
+                        //         }
+                        //     }
+                        // }
+
+                        // Get historical data instead of real-time
+                        match client.historical_data(
+                            &contract,
+                            None,                   // Current time
+                            1.days(),               // Last day of data
+                            HistoricalBarSize::Min, // 1-minute bars
+                            HistoricalWhatToShow::Trades,
+                            true,
+                        ) {
+                            Ok(historical_data) => {
+                                println!(
+                                    "✅ Got {} historical bars for streaming",
+                                    historical_data.bars.len()
+                                );
+
+                                // Stream historical bars as live quotes
+                                for bar in historical_data.bars {
+                                    if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+                                        break;
+                                    }
+
+                                    let quote = Quote {
+                                        symbol: "AAPL".to_string(),
+                                        bid: bar.low,                // Use low as bid
+                                        ask: bar.high,               // Use high as ask
+                                        bid_size: bar.volume as u32, // Used only as a placeholder to test systems outside market hours
+                                        ask_size: bar.volume as u32, // Used only as a placeholder to test systems outside market hours
+                                        biddate: chrono::Local::now(),
+                                        askdate: chrono::Local::now(),
+                                    };
+
+                                    if let Ok(subs) = subscribers.lock() {
+                                        for (_, sender) in subs.iter() {
+                                            let _ = sender.send(quote.clone());
+                                        }
+                                    }
+
+                                    // Simulate live streaming - send quote every 100ms
+                                    std::thread::sleep(std::time::Duration::from_millis(100));
+                                }
+                            }
+                            Err(e) => {
+                                println!("❌ Failed to get historical data: {:?}", e);
+                            }
+                        }
+                        break;
+                    }
+
+                    Err(_) => {
+                        if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+                            break; // Exit if shutting down
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(5)); // Retr
                     }
                 }
-
-                // Sleep INSIDE the loop to prevent busy waiting
-                std::thread::sleep(std::time::Duration::from_millis(100));
             }
-
             // Set disconnected status AFTER loop exits
             connection_status.store(false, std::sync::atomic::Ordering::Relaxed);
         });
