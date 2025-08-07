@@ -2,16 +2,16 @@ use super::*;
 
 #[test]
 fn test_can_create_ibkr_service() {
-    let service = new("localhost".to_string(), 7497, 1);
+    let service = new("localhost".to_string(), 4002, 1);
 }
 
 #[test]
 fn test_init_returns_join_handle() {
-    let service = new("localhost".to_string(), 7497, 1);
+    let service = new("localhost".to_string(), 4002, 1);
     let shutdown = Arc::new(AtomicBool::new(false));
     let symbols = vec!["AAPL".to_string()];
 
-    let handle = service.init(shutdown.clone(), "localhost".to_string(), 7497, 1);
+    let handle = service.init(shutdown.clone());
     assert!(handle.is_ok());
 
     // Clean shutdown
@@ -22,20 +22,18 @@ fn test_init_returns_join_handle() {
 }
 #[test]
 fn test_service_starts_disconnected() {
-    let service = new("localhost".to_string(), 7497, 1);
+    let service = new("localhost".to_string(), 4002, 1);
     assert!(!service.is_connected());
 }
 
 #[test]
 fn test_init_attempts_connection() {
-    let service = new("localhost".to_string(), 7497, 1);
+    let service = new("localhost".to_string(), 4002, 1);
     let shutdown = Arc::new(AtomicBool::new(false));
 
     // Should start disconnected
     assert!(!service.is_connected());
-    let _handle = service
-        .init(shutdown.clone(), "localhost".to_string(), 7497, 1)
-        .unwrap();
+    let _handle = service.init(shutdown.clone()).unwrap();
 
     // Give it time to attempt connection
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -49,7 +47,7 @@ fn test_init_attempts_connection() {
 
 #[test]
 fn test_can_subscribe_to_market_data() {
-    let service = new("localhost".to_string(), 7497, 1);
+    let service = new("localhost".to_string(), 4002, 1);
     let symbols = vec!["AAPL".to_string()];
 
     let receiver = service.subscribe_market_data(symbols).unwrap();
@@ -58,7 +56,7 @@ fn test_can_subscribe_to_market_data() {
 
 #[test]
 fn test_can_unsubscribe_to_market_data() {
-    let service = new("localhost".to_string(), 7497, 1);
+    let service = new("localhost".to_string(), 4002, 1);
     let symbols = vec!["AAPL".to_string()];
 
     let receiver = service.subscribe_market_data(symbols).unwrap();
@@ -74,7 +72,7 @@ fn test_can_unsubscribe_to_market_data() {
 
 #[test]
 fn test_subscribers_receive_quotes() {
-    let service = new("localhost".to_string(), 7497, 1);
+    let service = new("localhost".to_string(), 4002, 1);
 
     // Subscribe to market data
     let receiver = service
@@ -83,9 +81,7 @@ fn test_subscribers_receive_quotes() {
 
     // Start the service
     let shutdown = Arc::new(AtomicBool::new(false));
-    let _handle = service
-        .init(shutdown.clone(), "localhost".to_string(), 7497, 1)
-        .unwrap();
+    let _handle = service.init(shutdown.clone()).unwrap();
 
     // Wait a bit for connection
     std::thread::sleep(std::time::Duration::from_millis(100));
