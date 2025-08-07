@@ -22,3 +22,20 @@ pub struct Candle {
     pub close: f64,
     pub volume: i64,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Signal {
+    Buy {
+        symbol: String,
+        price: f64,
+        confidence: f64,
+    },
+    Sell {
+        symbol: String,
+        price: f64,
+        confidence: f64,
+    },
+    Hold {
+        symbol: String,
+    },
+}
