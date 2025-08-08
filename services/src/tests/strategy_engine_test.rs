@@ -58,6 +58,7 @@ fn test_strategy_engine_processes_quotes_and_generates_signals() {
         biddate: chrono::Local::now(),
         askdate: chrono::Local::now(),
     };
+
     market_sender.send(mock_quote).unwrap();
 
     // Wait a bit for processing
