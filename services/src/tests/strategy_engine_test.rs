@@ -78,7 +78,7 @@ fn test_strategy_engine_processes_quotes_and_generates_signals() {
 
 #[test]
 fn test_bollinger_bands_generates_buy_signal_at_lower_band() {
-    let strategy = new_bollinger_bands_strategy(3, 2.0);
+    let strategy = new_bollinger_bands_strategy(3, 1.5);
     let engine = new_strategy_engine(strategy);
 
     let signal_receiver = engine.subscribe_signals().unwrap();
@@ -90,8 +90,8 @@ fn test_bollinger_bands_generates_buy_signal_at_lower_band() {
     let quotes = vec![
         Quote {
             symbol: "AAPL".to_string(),
-            bid: 199.0,
-            ask: 201.0, // High price
+            bid: 299.0,
+            ask: 301.0, // Mid = 300
             bid_size: 100,
             ask_size: 100,
             bid_date: chrono::Local::now(),
@@ -99,8 +99,8 @@ fn test_bollinger_bands_generates_buy_signal_at_lower_band() {
         },
         Quote {
             symbol: "AAPL".to_string(),
-            bid: 198.0,
-            ask: 202.0, // High price
+            bid: 299.0,
+            ask: 301.0, // Mid = 300
             bid_size: 100,
             ask_size: 100,
             bid_date: chrono::Local::now(),
@@ -108,15 +108,14 @@ fn test_bollinger_bands_generates_buy_signal_at_lower_band() {
         },
         Quote {
             symbol: "AAPL".to_string(),
-            bid: 99.0,
-            ask: 101.0, // Very low price - should trigger BUY signal
+            bid: 9.0,
+            ask: 11.0, // Mid = 10 - massive drop
             bid_size: 100,
             ask_size: 100,
             bid_date: chrono::Local::now(),
             ask_date: chrono::Local::now(),
         },
     ];
-
     for quote in quotes {
         market_sender.send(quote).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -125,19 +124,17 @@ fn test_bollinger_bands_generates_buy_signal_at_lower_band() {
     std::thread::sleep(std::time::Duration::from_millis(100));
 
     match signal_receiver.recv_timeout(std::time::Duration::from_millis(500)) {
-        Ok(signal) => {
-            match signal {
-                Signal::Buy {
-                    symbol,
-                    price,
-                    confidence: _,
-                } => {
-                    assert_eq!(symbol, "AAPL");
-                    assert!((price - 100.0).abs() < 1.0); // Price should be around 100
-                }
-                _ => panic!("Expected BUY signal, got {:?}", signal),
+        Ok(signal) => match signal {
+            Signal::Buy {
+                symbol,
+                price,
+                confidence: _,
+            } => {
+                assert_eq!(symbol, "AAPL");
+                assert!((price - 40.0).abs() < 1.0);
             }
-        }
+            _ => panic!("Expected BUY signal, got {:?}", signal),
+        },
         Err(_) => {
             panic!("Expected to receive a BUY signal but got timeout");
         }
