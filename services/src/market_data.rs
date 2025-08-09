@@ -122,8 +122,8 @@ impl MarketDataService for MarketData {
                                         ask: bar.high,               // Use high as ask
                                         bid_size: bar.volume as u32, // Used only as a placeholder to test systems outside market hours
                                         ask_size: bar.volume as u32, // Used only as a placeholder to test systems outside market hours
-                                        biddate: chrono::Local::now(),
-                                        askdate: chrono::Local::now(),
+                                        bid_date: chrono::Local::now(),
+                                        ask_date: chrono::Local::now(),
                                     };
 
                                     if let Ok(subs) = subscribers.lock() {
