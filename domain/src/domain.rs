@@ -8,8 +8,8 @@ pub struct Quote {
     pub ask: f64,
     pub bid_size: u32,
     pub ask_size: u32,
-    pub biddate: DateTime<Local>,
-    pub askdate: DateTime<Local>,
+    pub bid_date: DateTime<Local>,
+    pub ask_date: DateTime<Local>,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
