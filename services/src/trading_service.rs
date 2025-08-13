@@ -2,6 +2,7 @@ use anyhow::Result;
 use crossbeam::epoch::Atomic;
 use crossbeam_channel::Receiver;
 use domain::domain::Signal;
+use ibapi::Client;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
@@ -22,6 +23,7 @@ pub struct TradingService {
     port: u16,
     client_id: i32,
     orders: Arc<Mutex<Vec<Order>>>,
+    ibkr_connected: Arc<AtomicBool>,
 }
 
 impl TradingService {
@@ -32,7 +34,22 @@ impl TradingService {
     ) -> Result<JoinHandle<()>> {
         let orders = self.orders.clone();
 
+        let ibkr_connected = self.ibkr_connected.clone();
+        let address = format!("{}:{}", self.host, self.port);
+        let client_id = self.client_id;
+
         let handle = std::thread::spawn(move || {
+            let _client = match Client::connect(&address, client_id) {
+                Ok(client) => {
+                    ibkr_connected.store(true, Ordering::Relaxed);
+                    println!("Connecting to IBKR for trading");
+                    Some(client) // Keep client alive
+                }
+                Err(e) => {
+                    println!("Failed to connect to IBKR: {}", e);
+                    None
+                }
+            };
             while !shutdown.load(Ordering::Relaxed) {
                 match signal_receiver.recv_timeout(Duration::from_millis(100)) {
                     Ok(signal) => {
@@ -88,6 +105,10 @@ impl TradingService {
             .map(|orders| orders.clone())
             .map_err(|e| anyhow::anyhow!("Lock error: {}", e))
     }
+
+    pub fn is_connected_to_ibkr(&self) -> bool {
+        self.ibkr_connected.load(Ordering::Relaxed)
+    }
 }
 
 pub fn new_trading_service(host: String, port: u16, client_id: i32) -> TradingService {
@@ -96,6 +117,7 @@ pub fn new_trading_service(host: String, port: u16, client_id: i32) -> TradingSe
         port,
         client_id,
         orders: Arc::new(Mutex::new(Vec::new())),
+        ibkr_connected: Arc::new(AtomicBool::new(false)),
     }
 }
 
