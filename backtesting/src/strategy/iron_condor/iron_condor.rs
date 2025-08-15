@@ -5,9 +5,9 @@ use crate::strategy::iron_condor::config::IronCondorConfig;
 use anyhow::Result;
 use cudarc::{
     driver::{CudaContext, LaunchConfig, PushKernelArg},
-    nvrtc::{CompileOptions, compile_ptx_with_opts},
+    nvrtc::{compile_ptx_with_opts, CompileOptions},
 };
-use include_dir::{Dir, include_dir};
+use include_dir::{include_dir, Dir};
 pub struct IronCondor {
     config: IronCondorConfig,
 }
