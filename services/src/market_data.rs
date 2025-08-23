@@ -137,7 +137,7 @@ impl MarketDataService for MarketData {
                                 }
                             }
                             Err(e) => {
-                                println!("❌ Failed to get historical data: {:?}", e);
+                                println!("Failed to get historical data: {:?}", e);
                             }
                         }
                         break;

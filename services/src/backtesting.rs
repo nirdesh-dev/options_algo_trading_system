@@ -1,5 +1,11 @@
 use anyhow::{Context, Ok, Result, bail};
+use core::num;
+use cudarc::{
+    driver::{CudaContext, LaunchConfig, PushKernelArg},
+    nvrtc::{CompileOptions, compile_ptx_with_opts},
+};
 use domain::domain::DomainRules;
+use include_dir::{Dir, include_dir};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
@@ -99,10 +105,18 @@ pub trait Strategy {
         price_data: &[f32],
     ) -> Result<BacktestResult<Self::Params>>;
 
-    fn simulate_cuda(
-        params: &Self::Params,
+    fn simulate_gpu(
+        config: &ValidatedConfig<Self::Params>,
         price_data: &[f32],
-    ) -> Result<BacktestResult<Self::Params>>;
+    ) -> Result<Vec<BacktestResult<Self::Params>>> {
+        // Default implementation: Run CPU version in a Loop
+        // For strategies with parallel algorithms and a corresponding CUDA Kernel, the GPU algorithm will override
+        config
+            .generate_param_grid()
+            .iter()
+            .map(|params| Self::simulate_strategy(params, price_data))
+            .collect()
+    }
 }
 
 // Bollinger Bands implementation
@@ -298,13 +312,126 @@ impl Strategy for BollingerBandsStrategy {
         println!("{:?}", &result);
         Ok(result)
     }
-
-    fn simulate_cuda(
-        params: &Self::Params,
+    fn simulate_gpu(
+        config: &ValidatedConfig<Self::Params>,
         price_data: &[f32],
-    ) -> Result<BacktestResult<Self::Params>> {
-        // For now, same as CPU version
-        Self::simulate_strategy(params, price_data)
+    ) -> Result<Vec<BacktestResult<Self::Params>>> {
+        static KERNELS: Dir = include_dir!("$CARGO_MANIFEST_DIR/../backtesting/src/cuda/kernels");
+
+        let opts = CompileOptions {
+            include_paths: vec![
+                "/usr/include".into(),
+                "/usr/include/x86_64-linux-gnu".into(),
+                "../backtesting/src/cuda/kernels".into(),
+            ],
+            ..Default::default()
+        };
+
+        let grid = config.generate_param_grid();
+
+        let periods: Vec<f32> = grid.iter().map(|p| p.period.value() as f32).collect();
+        let std_dev_factors: Vec<f32> = grid
+            .iter()
+            .map(|s| s.std_dev_factor.value() as f32)
+            .collect();
+
+        let num_params = grid.len();
+
+        // 3. Create CUDA context and stream
+        let device = CudaContext::new(0)?;
+        let stream = device.default_stream();
+
+        // Copy inputs to device mem
+        let prices_d = stream.memcpy_stod(price_data)?;
+        let periods_d = stream.memcpy_stod(&periods)?;
+        let std_dev_factors_d = stream.memcpy_stod(&std_dev_factors)?;
+
+        // Allocate output buffers
+        let mut pnl_d = stream.alloc_zeros::<f32>(num_params)?;
+        let mut num_trades_d = stream.alloc_zeros::<f32>(num_params)?;
+        let mut sharpe_ratio_d = stream.alloc_zeros::<f32>(num_params)?;
+        let mut max_drawdown_d = stream.alloc_zeros::<f32>(num_params)?;
+        let mut win_rate_d = stream.alloc_zeros::<f32>(num_params)?;
+        let mut volatility_d = stream.alloc_zeros::<f32>(num_params)?;
+
+        let bollinger_cu = KERNELS
+            .get_file("bollinger_bands.cu")
+            .expect("bollinger_bands.cu not found")
+            .contents_utf8()
+            .expect("bollinger_bands.cu invalid utf8");
+
+        let full_src = format!("{}", bollinger_cu);
+
+        let ptx = compile_ptx_with_opts(&full_src, opts)?;
+        let module = device.load_module(ptx)?;
+        let kernel = module.load_function("bollinger_bands_kernel")?;
+
+        // 7. Prepare kernel launch
+        let mut builder = stream.launch_builder(&kernel);
+
+        let cfg = LaunchConfig::for_num_elems(num_params as u32);
+
+        let prices_len = prices_d.len() as i32;
+        let num_params_i32 = num_params as i32;
+
+        builder
+            .arg(&prices_d)
+            .arg(&prices_len)
+            .arg(&periods_d)
+            .arg(&std_dev_factors_d)
+            .arg(&(num_params_i32))
+            .arg(&mut pnl_d)
+            .arg(&mut num_trades_d)
+            .arg(&mut sharpe_ratio_d)
+            .arg(&mut max_drawdown_d)
+            .arg(&mut win_rate_d)
+            .arg(&mut volatility_d);
+
+        unsafe {
+            builder.launch(cfg);
+        }
+
+        let pnl = stream.memcpy_dtov(&pnl_d)?;
+        let num_trades = stream.memcpy_dtov(&num_trades_d)?;
+        let sharpe = stream.memcpy_dtov(&sharpe_ratio_d)?;
+        let drawdown = stream.memcpy_dtov(&max_drawdown_d)?;
+        let win_rate = stream.memcpy_dtov(&win_rate_d)?;
+        let volatility = stream.memcpy_dtov(&volatility_d)?;
+
+        let results = grid
+            .into_iter()
+            .zip(
+                pnl.into_iter()
+                    .zip(num_trades)
+                    .zip(sharpe)
+                    .zip(drawdown)
+                    .zip(win_rate)
+                    .zip(volatility),
+            )
+            .map(
+                |(
+                    params,
+                    (
+                        ((((pnl_val, trades_val), sharpe_val), drawdown_val), win_rate_val),
+                        volatility_val,
+                    ),
+                )| {
+                    BacktestResult {
+                        params,
+                        total_pnl: pnl_val,
+                        num_trades: trades_val as i32,
+                        sharpe_ratio: sharpe_val,
+                        max_drawdown: drawdown_val,
+                        win_rate: win_rate_val,
+                        avg_trade_duration: 1.0,
+                        total_return: pnl_val,
+                        volatility: volatility_val,
+                    }
+                },
+            )
+            .collect();
+
+        Ok(results)
     }
 }
 
@@ -337,18 +464,18 @@ impl BacktestEngine {
     ) -> Result<Vec<BacktestResult<S::Params>>> {
         let params_grid = config.generate_param_grid();
         let mut results = Vec::new();
-
         match &self.compute_mode {
             ComputeMode::CPU { threads: _ } => {
                 for params in params_grid {
                     let result = S::simulate_strategy(&params, price_data)?;
-                    results.push(result);
+                    results.push(result)
                 }
             }
             ComputeMode::GPU { cuda_device: _ } => {
-                bail!("No implementation");
+                let result = S::simulate_gpu(config, price_data)?;
+                results = result
             }
-        }
+        };
         Ok(results)
     }
 }
