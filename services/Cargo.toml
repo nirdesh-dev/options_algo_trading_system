@@ -4,17 +4,25 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
-
 [dependencies]
-anyhow = "1.0.98"
-ibapi = "1.2.2"
-time = "0.3.41"
-crossbeam-channel = "0.5.15"
-crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
-domain = { path = "../domain" }
-include_dir = "0.7.4"
-chrono = { version = "0.4.41", features = ["serde"] }
+# Workspace dependencies
+anyhow.workspace = true
+tokio.workspace = true
+crossbeam-channel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+cudarc.workspace = true
+include_dir.workspace = true
+ibapi.workspace = true
 
-[dependencies.cudarc]
-version = "0.17.2"
-features = ["driver", "cuda-12000"]
+# Internal crates
+domain.workspace = true
+market-data = { path = "../crates/market-data" }
+strategy-engine = { path = "../crates/strategy-engine" }
+trading = { path = "../crates/trading" }
+backtesting = { path = "../crates/backtesting" }
+
+# Services-specific dependencies
+time = "0.3.41"
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }

@@ -1,0 +1,12 @@
+[package]
+name = "strategy-engine"
+version.workspace = true
+edition = "2021"
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+crossbeam-channel.workspace = true
+domain.workspace = true
+ibapi.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "risk-management"
+version.workspace = true
+edition = "2021"
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+domain.workspace = true

@@ -1,8 +1,43 @@
 [workspace]
-members = ["domain", "services"]
+members = [
+    "domain",
+    "services",
+    "crates/backtesting",
+    "crates/market-data",
+    "crates/strategy-engine",
+    "crates/trading",
+    "crates/risk-management",
+    "crates/observability",
+]
 
 [workspace.package]
 version = "0.9.0"
 authors = ["Nirdesh Bhattarai <nbhattarai.work@gmail.com>"]
 edition = "2024"
 documentation = ""
+
+[workspace.dependencies]
+# Core dependencies
+anyhow = "1.0.99"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.143"
+tokio = { version = "1.0", features = ["full", "tracing"] }
+log = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1.89"
+
+# Communication
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
+crossbeam-channel = "0.5"
+
+# Trading specific
+ibapi = "1.0"
+
+cudarc = { version = "0.17.2", features = ["cuda-12080"] }
+include_dir = "0.7"                                        # GPU/Compute
+
+# Internal workspace crates
+domain = { path = "domain" }
+
+# Tokio console telemetry
+console-subscriber = "0.4.1"

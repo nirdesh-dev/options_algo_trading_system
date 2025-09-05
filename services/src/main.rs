@@ -1,37 +1,54 @@
-// mod ib_client;
+use anyhow::Result;
+use crossbeam_channel::{Receiver, Sender};
+use domain::Quote;
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::signal;
 
-// use anyhow::Result;
-// use ib_client::IBClient;
+#[tokio::main]
+async fn main() -> Result<()> {
+    println!("Starting trading system");
 
-// use crate::ib_client::IBConfig;
+    // Create communication channels
+    let (quote_tx, quote_rx) = crossbeam_channel::unbounded::<Quote>();
+    let (signal_tx, signal_rx) = crossbeam_channel::unbounded::<String>();
 
-// fn main() -> Result<()> {
-//     let ib = IBClient::new(IBConfig::default());
-//     let mut client = ib.connect()?;
+    println!("Channels created");
 
-//     ib.get_spx_minute_data(&mut client)?;
+    // Wait for close signal Ctrl + C
+    signal::ctrl_c().await?;
+    println!("Shutting down");
 
-//     Ok(())
-// }
-use ibapi::prelude::*;
+    Ok(())
+}
 
-fn main() {
-    let connection_url = "127.0.0.1:4002";
-    let client = Client::connect(connection_url, 100).expect("connection to TWS failed!");
+fn simulate_market_data(quote_tx: Sender<Quote>) {
+    println!("Market data simulator started");
 
-    // Request real-time bars data for AAPL with 5-second intervals
-    let contract = Contract::stock("AAPL");
-    let subscription = client
-        .realtime_bars(
-            &contract,
-            RealtimeBarSize::Sec5,
-            RealtimeWhatToShow::Trades,
-            false,
-        )
-        .expect("realtime bars request failed!");
+    let mut price = 150.0;
 
-    for bar in subscription {
-        // Process each bar here (e.g., print or use in calculations)
-        println!("bar: {bar:?}");
+    for i in 0..10 {
+        // Send 10 quotes then stop
+        price += (i as f64 * 0.5) - 2.0; // Simple price movement
+
+        let quote = Quote {
+            symbol: "AAPL".to_string(),
+            bid: price - 0.05,
+            ask: price + 0.05,
+            last_price: price,
+            bid_size: 100,
+            ask_size: 100,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            volume: 1000,
+        };
+        println!("Sending quote: AAPL @ ${:.2}", price);
+        if quote_tx.send(quote).is_err() {
+            break;
+        }
+        thread::sleep(Duration::from_secs(1));
     }
+    println!("Market data simulation complete");
 }

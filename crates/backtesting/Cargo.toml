@@ -1,0 +1,18 @@
+[package]
+name = "backtesting"
+version.workspace = true
+edition = "2021"
+authors.workspace = true
+
+[dependencies]
+# Core dependencies
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# GPU/Compute dependencies
+cudarc.workspace = true
+include_dir.workspace = true
+
+# Internal workspace crates
+domain.workspace = true

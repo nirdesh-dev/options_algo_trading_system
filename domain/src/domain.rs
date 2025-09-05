@@ -6,12 +6,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Debug, Clone)]
 pub struct Quote {
     pub symbol: String,
+    pub last_price: f64,
     pub bid: f64,
     pub ask: f64,
     pub bid_size: u32,
     pub ask_size: u32,
-    pub bid_date: DateTime<Local>,
-    pub ask_date: DateTime<Local>,
+    pub volume: u64,
+    pub timestamp: u64,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
