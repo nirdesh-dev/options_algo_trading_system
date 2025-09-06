@@ -1,3 +1,3 @@
 pub mod domain;
 
-pub use domain::Quote;
+pub use domain::{Quote, Signal};

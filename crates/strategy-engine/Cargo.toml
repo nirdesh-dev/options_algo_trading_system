@@ -10,3 +10,4 @@ tokio.workspace = true
 crossbeam-channel.workspace = true
 domain.workspace = true
 ibapi.workspace = true
+market-data = { path = "../market-data" }

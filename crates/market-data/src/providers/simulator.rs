@@ -1,5 +1,4 @@
 use crate::traits::MarketDataProvider;
-use crate::types::Quote;
 use crate::types::{
     ConnectionStatus, DataType, EventType, MarketDataEvent, SourceType, Subscription,
     UpdateFrequency,
@@ -7,6 +6,7 @@ use crate::types::{
 use anyhow::Result;
 use async_trait::async_trait;
 use crossbeam_channel::Sender;
+use domain::Quote;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

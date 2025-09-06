@@ -1,17 +1,5 @@
+use domain::Quote;
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Quote {
-    pub symbol: String,
-    pub last_price: f64,
-    pub bid: f64,
-    pub ask: f64,
-    pub bid_size: u32,
-    pub ask_size: u32,
-    pub volume: u64,
-    pub timestamp: u64,
-    pub exchange: Option<String>,
-}
 
 #[derive(Debug, Clone, Hash)]
 pub struct Subscription {

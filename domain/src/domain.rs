@@ -3,7 +3,7 @@ use std::default;
 use chrono::{DateTime, Local, NaiveDate};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quote {
     pub symbol: String,
     pub last_price: f64,
@@ -13,6 +13,7 @@ pub struct Quote {
     pub ask_size: u32,
     pub volume: u64,
     pub timestamp: u64,
+    pub exchange: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]

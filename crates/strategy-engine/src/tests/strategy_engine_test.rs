@@ -1,180 +1,228 @@
-// use crossbeam::epoch::Atomic;
-// use ibapi::market_data;
+use crate::engine::StrategyEngine;
+use crate::strategies::bollinger_bands::BollingerBandsStrategy;
+use domain::domain::{Quote, Signal};
+use market_data::{
+    providers::simulator::SimulatorProvider,
+    services::MarketDataService,
+    types::{DataType, Subscription, UpdateFrequency},
+};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::signal;
 
-// use crate::market_data::MarketDataService;
+// #[tokio::test]
+// async fn test_strategy_engine_basic() {
+//     let mut engine = StrategyEngine::new();
 
-// use super::*;
-// use domain::domain::Quote;
-// use std::sync::Arc;
-// use std::sync::atomic::AtomicBool;
+//     let strategy = Box::new(BollingerBandsStrategy::new(
+//         "test_bb".to_string(),
+//         vec!["AAPL".to_string()],
+//         3,
+//         2.0,
+//     ));
 
-// #[test]
-// fn test_can_create_strategy_engine() {
-//     let strategy = new_bollinger_bands_strategy(20, 2.0);
-//     let engine = new_strategy_engine(strategy);
+//     engine.add_strategy(strategy);
+
+//     // Create test quotes
+//     let quotes = vec![
+//         Quote {
+//             symbol: "AAPL".to_string(),
+//             last_price: 150.0,
+//             bid: 149.5,
+//             ask: 150.5,
+//             bid_size: 100,
+//             ask_size: 100,
+//             volume: 1000,
+//             timestamp: 1234567890,
+//             exchange: Some("SIMULATOR".to_string()),
+//         },
+//         Quote {
+//             symbol: "AAPL".to_string(),
+//             last_price: 151.0,
+//             bid: 150.5,
+//             ask: 151.5,
+//             bid_size: 100,
+//             ask_size: 100,
+//             volume: 1000,
+//             timestamp: 1234567891,
+//             exchange: Some("SIMULATOR".to_string()),
+//         },
+//         Quote {
+//             symbol: "AAPL".to_string(),
+//             last_price: 152.0,
+//             bid: 151.5,
+//             ask: 152.5,
+//             bid_size: 100,
+//             ask_size: 100,
+//             volume: 1000,
+//             timestamp: 1234567892,
+//             exchange: Some("SIMULATOR".to_string()),
+//         },
+//     ];
+
+//     let mut signal_count = 0;
+//     for quote in quotes {
+//         engine.process_quote(&quote).unwrap();
+
+//         let signal_receiver = engine.get_signal_receiver();
+//         while let Ok(signal) = signal_receiver.try_recv() {
+//             eprintln!("Received signal: {:?}", signal);
+//             signal_count += 1;
+//         }
+//     }
+//     eprintln!("Total signals generated: {}", signal_count);
+//     assert!(
+//         signal_count > 0,
+//         "Should have generated at least one signal"
+//     );
 // }
 
-// #[test]
-// fn test_strategy_engine_has_subscribe_method() {
-//     let strategy = new_bollinger_bands_strategy(20, 2.0);
-//     let engine = new_strategy_engine(strategy);
+// #[tokio::test]
+// async fn test_market_data_to_strategy_integration() {
+//     eprintln!("Testing MarketData -> Strategy Engine implementation");
 
-//     let _receiver = engine.subscribe_signals();
-// }
+//     let market_data = MarketDataService::new();
+//     let provider = SimulatorProvider::new(
+//         market_data.get_quote_sender(),
+//         market_data.get_event_sender(),
+//     );
 
-// #[test]
-// fn test_strategy_engine_can_start() {
-//     let strategy = new_bollinger_bands_strategy(20, 2.0);
-//     let engine = new_strategy_engine(strategy);
-
-//     // Create a mock market data channel
-//     let (_sender, market_data_receiver) = crossbeam_channel::unbounded();
-//     let shutdown = Arc::new(AtomicBool::new(false));
-
-//     let handle = engine.start(market_data_receiver, shutdown);
-//     assert!(handle.is_ok());
-// }
-
-// #[test]
-// fn test_strategy_engine_processes_quotes_and_generates_signals() {
-//     let strategy = new_bollinger_bands_strategy(20, 2.0);
-//     let engine = new_strategy_engine(strategy);
-
-//     // Subscribe to signals
-//     let signal_receiver = engine.subscribe_signals().unwrap();
-
-//     // Create market data channel and send a quote
-//     let (market_sender, market_receiver) = crossbeam_channel::unbounded();
-//     let shutdown = Arc::new(AtomicBool::new(false));
-
-//     // Start the engine
-//     let _handle = engine.start(market_receiver, shutdown.clone()).unwrap();
-
-//     // Send a mock quote
-//     let mock_quote = Quote {
-//         symbol: "AAPL".to_string(),
-//         bid: 100.0,
-//         ask: 101.0,
-//         bid_size: 100,
-//         ask_size: 100,
-//         bid_date: chrono::Local::now(),
-//         ask_date: chrono::Local::now(),
+//     let subscription = Subscription {
+//         symbols: vec!["AAPL".to_string()],
+//         data_types: vec![DataType::RealTimeQuotes],
+//         update_frequency: UpdateFrequency::RealTime,
 //     };
 
-//     market_sender.send(mock_quote).unwrap();
+//     let sub_id = market_data
+//         .subscribe(&provider, subscription)
+//         .await
+//         .unwrap();
+//     eprintln!("Market data subscription creaetd: {:?}", sub_id);
 
-//     // Wait a bit for processing
-//     std::thread::sleep(std::time::Duration::from_millis(100));
+//     let mut strategy_engine = StrategyEngine::new();
+//     let strategy = Box::new(BollingerBandsStrategy::new(
+//         "bb_aapl".to_string(),
+//         vec!["AAPL".to_string()],
+//         5,
+//         1.5,
+//     ));
 
-//     // Try to receive a signal - this will fail because our engine doesn't process quotes yet
-//     match signal_receiver.recv_timeout(std::time::Duration::from_millis(200)) {
-//         Ok(_signal) => {
-//             // Test passes if we receive any signal
+//     strategy_engine.add_strategy(strategy);
+//     eprintln!("Strategy engine created with bollinger bands");
+
+//     let quote_stream = market_data.get_quote_stream();
+//     let signal_stream = strategy_engine.get_signal_receiver();
+
+//     let engine_clone = Arc::new(Mutex::new(strategy_engine));
+//     let engine_for_thread = engine_clone.clone();
+
+//     let processing_handle = std::thread::spawn(move || {
+//         eprintln!("Starting quote processing");
+//         // let mut engine = engine_for_thread.lock().unwrap();
+//         while let Ok(quote) = quote_stream.recv() {
+//             eprintln!(
+//                 "Processing quote: {} = ${:.2}",
+//                 quote.symbol, quote.last_price
+//             );
+//             let mut engine = engine_for_thread.lock().unwrap();
+//             if let Err(e) = engine.process_quote(&quote) {
+//                 eprintln!("Error processing quote: {}", e);
+//             }
 //         }
-//         Err(_) => {
-//             panic!("Expected to receive a signal but got timeout");
+//         eprintln!("Quote processing thread stopped");
+//     });
+
+//     // // Waiting for background task to generate quotes
+//     tokio::time::sleep(Duration::from_millis(1000)).await;
+//     eprintln!("Listening for signals");
+
+//     let mut signals_received = 0;
+//     let start_time = std::time::Instant::now();
+
+//     while start_time.elapsed() < Duration::from_millis(2000) {
+//         match signal_stream.try_recv() {
+//             Ok(signal) => {
+//                 eprintln!("Signal received: {:?}", signal);
+//                 signals_received += 1;
+//             }
+//             Err(_) => {
+//                 tokio::time::sleep(Duration::from_millis(50)).await;
+//             }
 //         }
 //     }
-//     shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+//     eprintln!("Integration test results:");
+//     eprintln!("   - Signals received: {}", signals_received);
+//     eprintln!("   - Test duration: 2 seconds");
+
+//     // We should have received some signals (at least Hold signals)
+//     assert!(
+//         signals_received > 0,
+//         "Should have received at least one signal from strategy"
+//     );
+//     eprintln!("Integration test passed!");
 // }
 
-// // #[test]
-// // fn test_bollinger_bands_generates_buy_signal_at_lower_band() {
-// //     let strategy = new_bollinger_bands_strategy(3, 2.0);
-// //     let engine = new_strategy_engine(strategy);
+#[tokio::test]
+async fn test_market_data_to_strategy_integration_with_manual_quote_processing() {
+    eprintln!("Testing MarketData -> Strategy Engine implementation");
 
-// //     let signal_receiver = engine.subscribe_signals().unwrap();
-// //     let (market_sender, market_receiver) = crossbeam_channel::unbounded();
-// //     let shutdown = Arc::new(AtomicBool::new(false));
+    let market_data = MarketDataService::new();
+    let provider = SimulatorProvider::new(
+        market_data.get_quote_sender(),
+        market_data.get_event_sender(),
+    );
 
-// //     let _handle = engine.start(market_receiver, shutdown.clone()).unwrap();
-// //     // Send quotes to establish a pattern: high prices first, then a low price
-// //     let quotes = vec![
-// //         Quote {
-// //             symbol: "AAPL".to_string(),
-// //             bid: 299.0,
-// //             ask: 301.0, // Mid = 300
-// //             bid_size: 100,
-// //             ask_size: 100,
-// //             bid_date: chrono::Local::now(),
-// //             ask_date: chrono::Local::now(),
-// //         },
-// //         Quote {
-// //             symbol: "AAPL".to_string(),
-// //             bid: 299.0,
-// //             ask: 301.0, // Mid = 300
-// //             bid_size: 100,
-// //             ask_size: 100,
-// //             bid_date: chrono::Local::now(),
-// //             ask_date: chrono::Local::now(),
-// //         },
-// //         Quote {
-// //             symbol: "AAPL".to_string(),
-// //             bid: 9.0,
-// //             ask: 11.0, // Mid = 10 - massive drop
-// //             bid_size: 100,
-// //             ask_size: 100,
-// //             bid_date: chrono::Local::now(),
-// //             ask_date: chrono::Local::now(),
-// //         },
-// //     ];
-// //     for quote in quotes {
-// //         market_sender.send(quote).unwrap();
-// //         std::thread::sleep(std::time::Duration::from_millis(50));
-// //     }
+    let subscription = Subscription {
+        symbols: vec!["AAPL".to_string()],
+        data_types: vec![DataType::RealTimeQuotes],
+        update_frequency: UpdateFrequency::RealTime,
+    };
 
-// //     std::thread::sleep(std::time::Duration::from_millis(100));
+    let sub_id = market_data
+        .subscribe(&provider, subscription)
+        .await
+        .unwrap();
+    eprintln!("Market data subscription creaetd: {:?}", sub_id);
 
-// //     match signal_receiver.recv_timeout(std::time::Duration::from_millis(500)) {
-// //         Ok(signal) => match signal {
-// //             Signal::Buy {
-// //                 symbol,
-// //                 price,
-// //                 confidence: _,
-// //             } => {
-// //                 assert_eq!(symbol, "AAPL");
-// //                 assert!((price - 10.0).abs() < 1.0);
-// //             }
-// //             _ => panic!("Expected BUY signal, got {:?}", signal),
-// //         },
-// //         Err(_) => {
-// //             panic!("Expected to receive a BUY signal but got timeout");
-// //         }
-// //     }
+    let mut strategy_engine = StrategyEngine::new();
+    let strategy = Box::new(BollingerBandsStrategy::new(
+        "bb_aapl".to_string(),
+        vec!["AAPL".to_string()],
+        5,
+        1.5,
+    ));
 
-// //     shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
-// // }
+    strategy_engine.add_strategy(strategy);
+    eprintln!("Strategy engine created with bollinger bands");
 
-// #[test]
-// fn test_strategy_engine_integrates_with_market_data_service() {
-//     use crate::market_data;
+    let quote_stream = market_data.get_quote_stream();
+    let signal_stream = strategy_engine.get_signal_receiver();
 
-//     // Create market data service
-//     let market_service = market_data::new("127.0.0.1".to_string(), 4002, 200);
-//     let market_data_receiver = market_service
-//         .subscribe_market_data(["AAPL".to_string()].into())
-//         .unwrap();
+    // Waiting for background task to generate quotes
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+    eprintln!("Listening for signals");
 
-//     // Create strategy engine
-//     let strategy = new_bollinger_bands_strategy(20, 2.0);
-//     let engine = new_strategy_engine(strategy);
-//     let signal_receiver = engine.subscribe_signals().unwrap();
+    // Process quotes manually (same as test 1)
+    eprintln!("Processing quotes...");
+    for i in 0..10 {
+        if let Ok(quote) = quote_stream.try_recv() {
+            eprintln!("Quote {}: {} = ${:.2}", i, quote.symbol, quote.last_price);
+            strategy_engine.process_quote(&quote).unwrap();
+        } else {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
 
-//     // Connect them together
-//     let shutdown = Arc::new(AtomicBool::new(false));
-//     let _market_handle = market_service.init(shutdown.clone()).unwrap();
-//     let _strategy_handle = engine
-//         .start(market_data_receiver, shutdown.clone())
-//         .unwrap();
+    // Check signals
+    eprintln!("Checking for signals...");
+    let mut signals_received = 0;
+    for _ in 0..5 {
+        if let Ok(signal) = signal_stream.try_recv() {
+            eprintln!("Signal: {:?}", signal);
+            signals_received += 1;
+        }
+    }
 
-//     // Should receive trading signals generated from real market data
-//     match signal_receiver.recv_timeout(Duration::from_millis(5000)) {
-//         Ok(signal) => {
-//             println!("Received trading signal: {:?}", signal)
-//         }
-//         Err(_) => {
-//             panic!("Trading signal not received")
-//         }
-//     }
-//     shutdown.store(true, Ordering::Relaxed);
-// }
+    eprintln!("Signals received: {}", signals_received);
+    assert!(signals_received > 0);
+}

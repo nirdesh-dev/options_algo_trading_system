@@ -1,8 +1,8 @@
 use crate::traits::MarketDataProvider;
-use crate::types::Quote;
 use crate::types::{ConnectionStatus, EventType, MarketDataEvent, SourceType, Subscription};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use domain::Quote;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;

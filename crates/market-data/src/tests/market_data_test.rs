@@ -1,8 +1,9 @@
 use crate::providers::simulator::SimulatorProvider;
 use crate::services::MarketDataService;
 use crate::traits::MarketDataProvider;
-use crate::types::{ConnectionStatus, DataType, Quote, Subscription, UpdateFrequency};
+use crate::types::{ConnectionStatus, DataType, Subscription, UpdateFrequency};
 use crossbeam_channel::unbounded;
+use domain::Quote;
 use tokio::time::Duration;
 
 #[tokio::test]

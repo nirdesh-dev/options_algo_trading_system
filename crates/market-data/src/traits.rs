@@ -1,7 +1,7 @@
-use crate::types::Quote;
 use crate::types::{ConnectionStatus, Subscription};
 use anyhow::Result;
 use async_trait::async_trait;
+use domain::Quote;
 
 #[async_trait]
 pub trait MarketDataProvider: Send + Sync {
